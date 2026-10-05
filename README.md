@@ -1,34 +1,85 @@
-# Telegram Reminder Bot
-A Telegram Bot which serves as a reminder for your meetings, appointments, events etc.
+# Бот-напоминалка: пишите обычными словами
 
-```/start -> add a new reminder```
+Telegram-бот, которому можно написать «завтра в 15:00 позвонить клиенту» или «каждый
+понедельник в 9 отправить отчёт», и он напомнит вовремя. Без календарей и кнопок с
+часами: бот сам понимает дату, время и повтор из обычной русской фразы. Напоминания
+переживают перезапуск, их можно отложить на 10 минут или час, у каждого пользователя
+свой часовой пояс.
 
-```/list -> lists all scheduled future reminders```
+> Это форк [dome272/Telegram-Reminder-Bot](https://github.com/dome272/Telegram-Reminder-Bot)
+> (2020 год). Оригинал на python-telegram-bot 13 не запускается с актуальной версией библиотеки
+> и терял все напоминания при перезапуске. Код переписан на aiogram 3 и SQLite, идея и лицензия
+> MIT сохранены.
 
-```/time -> change your timezone (standard on utc time)```
+Python 3.11+ · aiogram 3 · SQLite · pytest · Docker
 
-## Try the bot
-You can use the bot under: http://t.me/Appointment_Reminder_Bot
+| Создание | Срабатывание |
+|---|---|
+| ![Создание](docs/screenshots/01-sozdanie.png) | ![Срабатывание](docs/screenshots/02-srabatyvanie.png) |
 
-## Requirements
-* ```pip install python-telegram-bot```
-* telegram api token - place it in [bot.py](https://github.com/dome272/Telegram-Reminder-Bot/blob/main/bot.py) on line 248
+## Что понимает
 
-## Demo Video
-<img src="/video/telegram_reminder.gif" width="197" height="426"/>
+![Фразы](docs/screenshots/03-frazy.png)
 
-## How it works
-The code uses the telegram.ext ConversationHandler to create a guided and flawless conversation flow. Moreover it uses different other telegram.ext classes
-to "ask & get" the responses information from the user. Furthermore all of the data is being stored in [reminder.json](https://github.com/dome272/Telegram-Reminder-Bot/blob/main/reminder.json)
-to create the data flow between the different states of the ConversationHandler and have the opportunity to access the reminder later on (e.g. for the ```/list``` command).
-To provide this bot for people from different timezones, you have the opportunity to set your local timezone using the ```/time``` command to receive the reminders for your local time instead of the bot's / server's local time.
-Disclaimer: This is my first bot for telegram, so there might be things that could have been implemented and routed easier than I did.
+- **Разовые:** «завтра в 15:00 …», «сегодня в 18:30 …», «послезавтра …», «в пятницу в 9:30 …»,
+  «15 октября в 18:00 …», «20.10 …», «1 мая 2027 г. в 10:00 …», «в 7 вечера …», «в 3 часа дня …».
+- **Через интервал:** «через 20 минут …», «через полчаса …», «через полтора часа …»,
+  «через 3 дня …», «через неделю …».
+- **Повторы:** «каждый день в 8:00 …», «по будням в 8:30 …», «каждый понедельник в 9 …»,
+  «по средам в 15 …», «каждое 1 число …» (31-е число в коротком месяце — последний день).
+- Дата без времени — напоминание в 9:00. Время без даты — сегодня, а если уже прошло, то завтра.
+  «5 марта», когда март уже прошёл, — следующий год.
+- Непонятное и невозможное («позвонить маме», «в 25:00», «31.02») — бот объясняет, как написать правильно.
 
-## Credits
-https://github.com/unmonoqueteclea/calendar-telegram -> calendar implementation
+## Что умеет
 
-https://github.com/python-telegram-bot/python-telegram-bot -> telegram API
+- `/list` — список напоминаний с кнопками удаления.
+- Кнопки у сработавшего напоминания: **+10 мин**, **+1 час**, **Готово**. Отложенный раз
+  повторяющегося напоминания не сбивает его график.
+- `/tz` — часовой пояс кнопками (от Калининграда до Камчатки) или любой: `/tz Europe/Berlin`.
+  Повторы держат местное время и при переходе на летнее/зимнее время.
+- **Ничего не теряется при перезапуске.** Сроки хранятся в базе. Если бот был выключен в
+  момент срабатывания, напоминание придёт после запуска с пометкой «с опозданием на 47 мин».
+- Кто заблокировал бота — его напоминания снимаются, бот не спотыкается на ошибках отправки.
 
-## Contact
-Instagram [@dome271](https://instagram.com/dome271) 
-Email: d6582533@gmail.com
+## Ошибки оригинала, которые больше не повторяются
+
+- **После перезапуска не срабатывало ни одно напоминание.** Задачи жили только в памяти
+  планировщика, а `reminder.json` при старте не читался.
+- **«12 PM» превращалось в полночь следующего дня.** К часу «12 pm» прибавлялось 12 → 24:00.
+- **Сообщение врало о времени.** Приходило «встреча начнётся через 10 минут», хотя срабатывало
+  ровно в назначенное время.
+- **Часовой пояс считался от часов сервера.** Смещение прибавлялось к `datetime.now()`,
+  поэтому на сервере не в UTC все напоминания съезжали.
+- `/list` и `/time` у нового пользователя падали с `KeyError`.
+- `pip install python-telegram-bot` из инструкции ставит версию 20+, где нет `Filters`
+  и `Updater(use_context=…)`: бот падал при запуске.
+- Токен нужно было вписывать прямо в код. Теперь он задаётся в `.env`.
+
+## Запуск
+
+```bash
+pip install -r requirements.txt
+cp .env.example .env      # BOT_TOKEN от @BotFather
+python -m reminder
+```
+
+Docker: `docker build -t reminder . && docker run -d --env-file .env -v reminders:/data reminder`
+
+## Тесты
+
+```bash
+pip install -r requirements-dev.txt
+pytest -v
+```
+
+45 тестов на разбор фраз и ошибок, повторы, переход на зимнее время, срабатывание минута в минуту,
+отложить разовое и повторяющееся, перезапуск с новой базой, часовые пояса, чужие напоминания,
+заблокированный бот — через настоящий `Dispatcher` aiogram с подменённой сетью Telegram и
+управляемыми часами. Всего 59 тестов.
+
+![Тесты](docs/screenshots/04-testy.png)
+
+## Лицензия
+
+MIT, как у оригинала. Автор оригинала — [dome272](https://github.com/dome272).
